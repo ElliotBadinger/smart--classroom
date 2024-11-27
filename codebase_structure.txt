@@ -1,0 +1,17 @@
+# Codebase Structure
+=====================
+
+## Attendance ManagementSystem
+
+* `main.py`: The main entry point of the Attendance ManagementSystem.
+* `haarcascade_frontalface_alt.xml` and `haarcascade_frontalface_default.xml`: XML files used for face detection.
+* `logo.ico`: The logo of the Attendance ManagementSystem.
+* `StudentDetails.csv`: A CSV file containing student details.
+* `TrainingImage/`: A directory containing training images for face recognition.
+* `TrainingImageLabel/`: A directory containing labels for the training images.
+
+## smart_classroom_venv
+
+* `pyvenv.cfg`: A configuration file for the virtual environment.
+* `Include/`, `Lib/`, and `Scripts/`: Directories containing dependencies and scripts for the virtual environment.
+

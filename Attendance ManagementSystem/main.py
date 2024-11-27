@@ -16,7 +16,8 @@ from email.message import EmailMessage
 from tkinter.filedialog import askopenfilename
 from email.mime.multipart import MIMEMultipart
 import mysql.connector
-...
+
+
 
 try:
     import Tkinter as tk
@@ -81,38 +82,76 @@ class mainScreen:
             return True
 
         def takeImage():
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            training_image_path = os.path.join(base_dir, "TrainingImage") # Ensure its relative to current working directory
+            os.makedirs(training_image_path, exist_ok=True)  # Creates the directory if it doesn't exist
+
+            if not os.path.exists(training_image_path): # Verify after attempting to create it
+                raise IOError(f"Could not create TrainingImage directory: {training_image_path}")
             entryOne = self.studentID.get()
             entryTwo = self.studentName.get()
-            if entryOne == "":
-                self.Notification.configure(background="#800000")
-                self.Notification.configure(foreground="#FFFFFF")
-                self.Notification.configure(text="Please enter ID!")
-            elif entryTwo == "":
-                self.Notification.configure(background="#800000")
-                self.Notification.configure(foreground="#FFFFFF")
-                self.Notification.configure(text="Please enter Name!")
+            if not entryOne:
+                self.Notification.config(background="#800000", foreground="#FFFFFF", text="Please enter ID!")
+            elif not entryTwo:
+                self.Notification.config(background="#800000", foreground="#FFFFFF", text="Please enter Name!")
             else:
                 try:
                     cam = cv2.VideoCapture(0)
-                    detector = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-                    ID = self.studentID.get()
-                    Name = self.studentName.get()
+                    if not cam.isOpened():
+                        raise IOError("Cannot open webcam")
+
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                    haar_path = os.path.join(base_dir, "haarcascade_frontalface_default.xml")
+                    detector = cv2.CascadeClassifier(haar_path)
+                    if detector.empty():
+                        raise Exception(f"Error loading Haar Cascade: {haar_path}")
+
+                    ID = entryOne
+                    Name = entryTwo
                     sampleNum = 0
-                    while (True):
+                    total_images = 100 #number of images
+
+                    # Create Progress Bar
+                    progress = ttk.Progressbar(self.top, maximum=total_images, length=300, mode='determinate')
+                    progress.place(relx=0.1, rely=0.7, height=30)
+                    progress.config(value=0) #initialize
+
+                    training_image_path = os.path.join(base_dir, "TrainingImage")
+                    os.makedirs(training_image_path, exist_ok=True)
+
+                    recognizer = cv2.face.LBPHFaceRecognizer_create() # Initialize recognizer
+
+                    while sampleNum < total_images : #stop capturing when sample number reaches the total images
                         ret, img = cam.read()
+                        if not ret:
+                            print("Failed to grab frame")
+                            continue #go to next iteration
+
                         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                         faces = detector.detectMultiScale(gray, 1.3, 5)
+
                         for (x, y, w, h) in faces:
-                            cv2.rectangle(img, (x, y), (x + w, y + h), (255,255,255), 5)
+                            cv2.rectangle(img, (x, y), (x + w, y + h), (255, 255, 255), 2) #Fixed typo here from 5 to 2
+                            # Increment sampleNum *before* saving the image
                             sampleNum += 1
-                            cv2.imwrite("TrainingImage/ " + Name + "." + ID + "." + str(sampleNum) + ".png", gray[y:y + h, x:x + w])
-                            cv2.imshow("Taking images for student " + self.studentName.get(), img)
-                        if 0xFF == ord('Q') & cv2.waitKey(1):
-                            break
-                        elif sampleNum >= 100:
-                            break
+
+                            # Save the captured image
+                            cv2.imwrite(os.path.join(training_image_path, f"{Name}.{ID}.{sampleNum}.png"), gray[y:y + h, x:x + w])
+                            cv2.imshow("Taking images for student " + Name, img)
+                            progress["value"] = sampleNum #update progress bar
+                            self.top.update_idletasks() #refresh window to reflect progress bar update
+
+                        
+                        k = cv2.waitKey(1) & 0xFF
+                        if k == ord('Q'):
+                            break  # Allow quitting with 'Q' key
+
                     cam.release()
                     cv2.destroyAllWindows()
+
+                    progress.destroy() #remove progress bar once done
+
+
                     ts = time.time()
                     Date = datetime.datetime.fromtimestamp(ts).strftime("%d/%m/%Y")
                     Time = datetime.datetime.fromtimestamp(ts).strftime("%H:%M:%S")
@@ -124,24 +163,38 @@ class mainScreen:
                     res = "Images Saved for ID : " + ID + " Name : " + Name
                     self.Notification.configure(text=res, bg="#008000", width=64, font=('SF Pro Display', 16, 'bold'))
                     self.Notification.place(x=92, y=430)
-                except FileExistsError as F:
-                    f = 'Student Data already exists'
-                    self.Notification.configure(text=f, bg="Red", width=64)
+                    # FIX 2: Use os.path.join for trainer path in trainImage() as well.
+                    trainer_path = os.path.join(base_dir, "TrainingImageLabel","Trainer.yml")
+                    os.makedirs(os.path.join(base_dir,"TrainingImageLabel"),exist_ok=True)
+                    recognizer.write(trainer_path)
+                except (Exception, IOError) as e: #consistent with handling multiple exceptions
+                    print(f"Error: {e}")
+                    self.Notification.config(text=str(e), bg="Red")
                     self.Notification.place(x=92, y=430)
-
         def trainImage():
+            global faces, Id
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            training_image_path = os.path.join(base_dir, "TrainingImage")
+            haar_path = os.path.join(base_dir, "haarcascade_frontalface_default.xml")
+            detector = cv2.CascadeClassifier(haar_path)
+            if detector.empty():
+                raise Exception(f"Error loading Haar Cascade: {haar_path}")
+            
+            faces, Id = getImagesAndLabels(training_image_path, detector)
+            
             recognizer = cv2.face.LBPHFaceRecognizer_create()
-            global detector
-            detector = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
-            global faces,Id
-            faces, Id = getImagesAndLabels("TrainingImage")
             recognizer.train(faces, np.array(Id))
-            recognizer.write('TrainingImageLabel/Trainer.yml')
+            
+            trainer_path = os.path.join(base_dir, "TrainingImageLabel", "Trainer.yml")
+            recognizer.write(trainer_path)
+            
             res = "Student has been trained by the software."
             self.Notification.configure(text=res, bg="#008000", width=64, font=('SF Pro Display', 16, 'bold'))
             self.Notification.place(x=92, y=430)
 
-        def getImagesAndLabels(path):
+        def getImagesAndLabels(path, detector):
+            if not os.path.exists(path):  # Check if directory exists
+                raise FileNotFoundError(f"Training image directory not found: {path}")
             imagePaths = [os.path.join(path, f) for f in os.listdir(path)]
             faceSamples = []
             IDS = []
@@ -154,7 +207,7 @@ class mainScreen:
                     faceSamples.append(imageNp[y:y + h, x:x + w])
                     IDS.append(Id)
             return faceSamples, IDS
-
+        
         def autoAttendance():
             def fillAttendance():
                 SubjectEntry = self.subjectEntry.get()
@@ -166,9 +219,9 @@ class mainScreen:
                         self.welcomeMessageAuto.configure(foreground="#FFFFFF")
                         self.welcomeMessageAuto.configure(text="Please enter subject!")
                     else:
-                        recognizer = cv2.face.LBPHFaceRecognizer_create()
+                        recognizer = cv2.face.LBPHFaceRecognizer_create() # Update function call
                         try:
-                            recognizer.read("TrainingImageLabel\Trainer.yml")
+                            recognizer.read("TrainingImageLabel/Trainer.yml") # Fix file path
                         except:
                             self.welcomeMessageAuto.configure(text='Please make a folder names "TrainingImage"')
                         harcascadePath = "haarcascade_frontalface_default.xml"
@@ -215,6 +268,7 @@ class mainScreen:
                         date = datetime.datetime.fromtimestamp(ts).strftime("%d_%m_%Y")
                         timeStamp = datetime.datetime.fromtimestamp(ts).strftime('%H:%M:%S')
                         Hour, Minute, Second = timeStamp.split(":")
+                        os.makedirs("Attendance", exist_ok=True) # Create Attendance directory if it doesn't exist
                         fileName = "Attendance/" + self.subjectEntry.get() + "_" + date + "_Time_" + Hour + "_" + Second + ".csv"
                         attendance = attendance.drop_duplicates(['ID'], keep = "first")
                         print (attendance)
@@ -567,6 +621,7 @@ class mainScreen:
 
             self.chooseSubject = tk.Message(subName)
             self.chooseSubject.place(relx=0.0, rely=0.062, relheight=0.217, relwidth=1.009)
+
             self.chooseSubject.configure(background="#2E2E2E")
             self.chooseSubject.configure(font="-family {SF Pro Display} -size 36 -weight bold")
             self.chooseSubject.configure(foreground="#FFFFFF")
@@ -773,4 +828,3 @@ class mainScreen:
 
 if __name__ == '__main__':
     vp_start_gui()
-
