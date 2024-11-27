@@ -15,6 +15,8 @@ from email.mime.base import MIMEBase
 from email.message import EmailMessage
 from tkinter.filedialog import askopenfilename
 from email.mime.multipart import MIMEMultipart
+import mysql.connector
+...
 
 try:
     import Tkinter as tk
@@ -42,9 +44,7 @@ def create_mainScreen(root, *args, **kwargs):
     rt = root
     w = tk.Toplevel (root)
     top = mainScreen (w)
-    AMS_support.init(w, top, *args, **kwargs)
     return (w, top)
-
 
 class mainScreen:
     def __init__(self, top=None):
@@ -65,7 +65,6 @@ class mainScreen:
         font12 = "-family {SF Pro Display} -size 12 -weight bold "  \
             "-slant roman -underline 0 -overstrike 0"
 
-        
         def destroy_mainScreen():
             self.top.destroy()
 
@@ -101,7 +100,7 @@ class mainScreen:
                     sampleNum = 0
                     while (True):
                         ret, img = cam.read()
-                        gray = cv2.cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                         faces = detector.detectMultiScale(gray, 1.3, 5)
                         for (x, y, w, h) in faces:
                             cv2.rectangle(img, (x, y), (x + w, y + h), (255,255,255), 5)
@@ -115,7 +114,6 @@ class mainScreen:
                     cam.release()
                     cv2.destroyAllWindows()
                     ts = time.time()
-                    ######################Check for errors below######################
                     Date = datetime.datetime.fromtimestamp(ts).strftime("%d/%m/%Y")
                     Time = datetime.datetime.fromtimestamp(ts).strftime("%H:%M:%S")
                     row = [ID, Name, Date, Time]
@@ -137,16 +135,8 @@ class mainScreen:
             detector = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
             global faces,Id
             faces, Id = getImagesAndLabels("TrainingImage")
-            '''except Exception as e:
-                l='please make "TrainingImage" folder & put Images'
-                self.Notification.configure(text=l, bg="#008000", width=64, font=('SF Pro Display', 16, 'bold'))
-                self.Notification.place(x=92, y=430)'''
             recognizer.train(faces, np.array(Id))
             recognizer.write('TrainingImageLabel/Trainer.yml')
-            '''except Exception as e:
-                q = 'An error was encountered.'#Please make a folder named "TrainingImageLabel"'
-                self.Notification.configure(text=q, bg="#008000", width=64, font=('SF Pro Display', 16, 'bold'))
-                self.Notification.place(x=92, y=430)'''
             res = "Student has been trained by the software."
             self.Notification.configure(text=res, bg="#008000", width=64, font=('SF Pro Display', 16, 'bold'))
             self.Notification.place(x=92, y=430)
@@ -783,3 +773,4 @@ class mainScreen:
 
 if __name__ == '__main__':
     vp_start_gui()
+
